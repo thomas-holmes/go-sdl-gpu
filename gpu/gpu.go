@@ -10,11 +10,24 @@ import (
 	"unsafe"
 )
 
+const GPUFalse = 0
+const GPUTrue = 1
+
 type Color struct {
 	R, G, B, A uint8
 }
 
-type Rect C.GPU_Rect
+type cColor C.SDL_Color
+
+type Rect struct {
+	X, Y, W, H float32
+}
+
+func (r *Rect) cptr() *C.GPU_Rect {
+	return (*C.GPU_Rect)(unsafe.Pointer(r))
+}
+
+type cRect C.GPU_Rect
 
 type RendererID C.GPU_RendererID
 
@@ -84,7 +97,19 @@ const (
 
 // TODO: Resume at 210
 
+// Make usable type
 type Image C.GPU_Image
+
+type Camera struct {
+	X, Y, Z     float32
+	Angle       float32
+	Zoom        float32
+	ZNear, ZFar float32
+}
+
+func (c *Camera) cptr() *C.GPU_Camera {
+	return (*C.GPU_Camera)(unsafe.Pointer(c))
+}
 
 // Broken
 // type TextureHandle c.GPU_TextureHandle
@@ -362,9 +387,158 @@ func RegisterRenderer(id RendererID) {
 // End Renderer Setup
 
 // Begin Target
+func LoadTarget(i *Image) *Target {
+	return (*Target)(C.GPU_LoadTarget(i.cptr()))
+}
+
+func GetDefaultCamera() Camera {
+	camera := C.GPU_GetDefaultCamera()
+	return Camera{
+		X:     float32(camera.x),
+		Y:     float32(camera.y),
+		Z:     float32(camera.z),
+		Angle: float32(camera.angle),
+		Zoom:  float32(camera.zoom),
+		ZNear: float32(camera.z_near),
+		ZFar:  float32(camera.z_far),
+	}
+}
+
+func (t *Target) GetCamera() Camera {
+	camera := C.GPU_GetCamera(t.cptr())
+	return Camera{
+		X:     float32(camera.x),
+		Y:     float32(camera.y),
+		Z:     float32(camera.z),
+		Angle: float32(camera.angle),
+		Zoom:  float32(camera.zoom),
+		ZNear: float32(camera.z_near),
+		ZFar:  float32(camera.z_far),
+	}
+}
+
+func (t *Target) SetCamera(camera *Camera) {
+	C.GPU_SetCamera(t.cptr(), camera.cptr())
+}
+
+func (t *Target) EnableCamera(enable bool) {
+	C.GPU_EnableCamera(t.cptr(), C.bool(enable))
+}
+
+func (t *Target) IsCameraEnabled() bool {
+	return bool(C.GPU_IsCameraEnabled(t.cptr()))
+}
+
+func (t *Target) GetPixel(x, y int16) Color {
+	_color := C.GPU_GetPixel(t.cptr(), C.Sint16(x), C.Sint16(y))
+
+	return Color{uint8(_color.r), uint8(_color.g), uint8(_color.b), uint8(_color.a)}
+}
+
+func (t *Target) SetClipRect(rect Rect) {
+	_r := C.GPU_Rect{C.float(rect.X), C.float(rect.Y), C.float(rect.W), C.float(rect.H)}
+	C.GPU_SetClipRect(t.cptr(), _r)
+}
+
+func (t *Target) SetClip(x, y int16, w, h uint16) {
+	C.GPU_SetClip(t.cptr(), C.Sint16(x), C.Sint16(y), C.Uint16(w), C.Uint16(h))
+}
+
+func (t *Target) UnsetClip() {
+	C.GPU_UnsetClip(t.cptr())
+}
+
+func IntersectRect(r1 Rect, r2 Rect) (Rect, bool) {
+	// Do I need to allocate?
+	var r3 Rect
+
+	_r1 := C.GPU_Rect{C.float(r1.X), C.float(r1.Y), C.float(r1.W), C.float(r1.H)}
+	_r2 := C.GPU_Rect{C.float(r2.X), C.float(r2.Y), C.float(r2.W), C.float(r2.H)}
+
+	ok := bool(C.GPU_IntersectRect(_r1, _r2, (&r3).cptr()))
+
+	return r3, ok
+}
+
+func (t *Target) IntersectClipRect(r1 Rect) (Rect, bool) {
+	// Do I need to allocate?
+	var r2 Rect
+
+	_r1 := C.GPU_Rect{C.float(r1.X), C.float(r1.Y), C.float(r1.W), C.float(r1.H)}
+
+	ok := bool(C.GPU_IntersectClipRect(t.cptr(), _r1, (&r2).cptr()))
+
+	return r2, ok
+}
+
+// Not sure if it should hit the c lib, or just do this
+func MakeRect(x, y, w, h float32) Rect {
+	return Rect{x, y, w, h}
+}
+
+// Not sure if it should hit the c lib, or just do this
+func MakeColor(r, g, b, a uint8) Color {
+	return Color{r, g, b, a}
+}
 
 func (t *Target) cptr() *C.GPU_Target {
 	return (*C.GPU_Target)(unsafe.Pointer(t))
+}
+
+func (t *Target) CreateAlias() *Target {
+	return (*Target)(C.GPU_CreateAliasTarget(t.cptr()))
+}
+
+func (t *Target) Free() {
+	C.GPU_FreeTarget(t.cptr())
+}
+
+func (t *Target) SetVirtualResolution(w, h uint16) {
+	C.GPU_SetVirtualResolution(t.cptr(), C.Uint16(w), C.Uint16(h))
+}
+
+func (t *Target) GetVirtualResolution() (width, height uint16) {
+	C.GPU_GetVirtualResolution(
+		t.cptr(), (*C.Uint16)(&width), (*C.Uint16)(&height),
+	)
+	return width, height
+}
+
+func (t *Target) GetVirtualCoords(displayX, displayY float32) (x, y float32) {
+	C.GPU_GetVirtualCoords(
+		t.cptr(), (*C.float)(&x), (*C.float)(&y), C.float(displayX), C.float(displayY),
+	)
+	return x, y
+}
+
+func (t *Target) UnsetVirtualResolution() {
+	C.GPU_UnsetVirtualResolution(t.cptr())
+}
+
+func (t *Target) SetViewport(viewport Rect) {
+	_r := C.GPU_Rect{C.float(viewport.X), C.float(viewport.Y), C.float(viewport.W), C.float(viewport.H)}
+	C.GPU_SetViewport(t.cptr(), _r)
+}
+
+func (t *Target) UnsetViewport() {
+	C.GPU_UnsetViewport(t.cptr())
+}
+
+func (t *Target) SetColor(color Color) {
+	_c := C.SDL_Color{C.Uint8(color.R), C.Uint8(color.G), C.Uint8(color.B), C.Uint8(color.A)}
+	C.GPU_SetTargetColor(t.cptr(), _c)
+}
+
+func (t *Target) SetRGB(r, g, b uint8) {
+	C.GPU_SetTargetRGB(t.cptr(), C.Uint8(r), C.Uint8(g), C.Uint8(b))
+}
+
+func (t *Target) SetRGBA(r, g, b, a uint8) {
+	C.GPU_SetTargetRGBA(t.cptr(), C.Uint8(r), C.Uint8(g), C.Uint8(b), C.Uint8(a))
+}
+
+func (t *Target) UnsetColor() {
+	C.GPU_UnsetTargetColor(t.cptr())
 }
 
 // End Target
@@ -524,12 +698,6 @@ func (t *Target) Flip() {
 
 // End Rendering
 
-// TODO: Group up with ... wherever
-func (t *Target) SetColor(color Color) {
-	_c := C.SDL_Color{C.Uint8(color.R), C.Uint8(color.G), C.Uint8(color.B), C.Uint8(color.A)}
-	C.GPU_SetTargetColor(t.cptr(), _c)
-}
-
 // Shapes Begin
 
 func (t *Target) Pixel(x, y float32, color Color) {
@@ -672,8 +840,9 @@ func (t *Target) Rectangle(x1, y1, x2, y2 float32, color Color) {
 
 func (t *Target) Rectangle2(rect Rect, color Color) {
 	_c := C.SDL_Color{C.Uint8(color.R), C.Uint8(color.G), C.Uint8(color.B), C.Uint8(color.A)}
+	_r := C.GPU_Rect{C.float(rect.X), C.float(rect.Y), C.float(rect.W), C.float(rect.H)}
 	C.GPU_Rectangle2(t.cptr(),
-		C.GPU_Rect(rect),
+		_r,
 		_c)
 }
 
@@ -689,8 +858,9 @@ func (t *Target) RectangleFilled(x1, y1, x2, y2 float32, color Color) {
 
 func (t *Target) RectangleFilled2(rect Rect, color Color) {
 	_c := C.SDL_Color{C.Uint8(color.R), C.Uint8(color.G), C.Uint8(color.B), C.Uint8(color.A)}
+	_r := C.GPU_Rect{C.float(rect.X), C.float(rect.Y), C.float(rect.W), C.float(rect.H)}
 	C.GPU_RectangleFilled2(t.cptr(),
-		C.GPU_Rect(rect),
+		_r,
 		_c)
 }
 
@@ -707,8 +877,9 @@ func (t *Target) RectangleRound(x1, y1, x2, y2, radius float32, color Color) {
 
 func (t *Target) RectangleRound2(rect Rect, radius float32, color Color) {
 	_c := C.SDL_Color{C.Uint8(color.R), C.Uint8(color.G), C.Uint8(color.B), C.Uint8(color.A)}
+	_r := C.GPU_Rect{C.float(rect.X), C.float(rect.Y), C.float(rect.W), C.float(rect.H)}
 	C.GPU_RectangleRound2(t.cptr(),
-		C.GPU_Rect(rect),
+		_r,
 		C.float(radius),
 		_c)
 }
@@ -726,8 +897,9 @@ func (t *Target) RectangleRoundFilled(x1, y1, x2, y2, radius float32, color Colo
 
 func (t *Target) RectangleRoundFilled2(rect Rect, radius float32, color Color) {
 	_c := C.SDL_Color{C.Uint8(color.R), C.Uint8(color.G), C.Uint8(color.B), C.Uint8(color.A)}
+	_r := C.GPU_Rect{C.float(rect.X), C.float(rect.Y), C.float(rect.W), C.float(rect.H)}
 	C.GPU_RectangleRoundFilled2(t.cptr(),
-		C.GPU_Rect(rect),
+		_r,
 		C.float(radius),
 		_c)
 }

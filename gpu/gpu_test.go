@@ -14,7 +14,7 @@ func TestRender(t *testing.T) {
 	color := Color{R: 255, G: 0, B: 255, A: 255}
 	doneTime := time.Now().Add(2 * time.Second)
 	for time.Now().Before(doneTime) {
-		target.Clear()
+		target.ClearRGB(50, 200, 50)
 		target.RectangleFilled(100, 100, 400, 400, color)
 		target.Flip()
 	}
