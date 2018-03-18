@@ -79,20 +79,70 @@ const (
 	BlendEqReverseSubtract = C.GPU_EQ_REVERSE_SUBTRACT
 )
 
-type BlendMode C.GPU_BlendMode
+type BlendPresetEnum C.GPU_BlendPresetEnum
 
 const (
-	BlendPresetNormal             = C.GPU_BLEND_NORMAL
-	BlendPresetPremultipliedAlpha = C.GPU_BLEND_PREMULTIPLIED_ALPHA
-	BlendPresetMultiply           = C.GPU_BLEND_MULTIPLY
-	BlendPresetAdd                = C.GPU_BLEND_ADD
-	BlendPresetSubtract           = C.GPU_BLEND_SUBTRACT
-	BlendPresetModAlpha           = C.GPU_BLEND_MOD_ALPHA
-	BlendPresetSetAlpha           = C.GPU_BLEND_SET_ALPHA
-	BlendPresetSet                = C.GPU_BLEND_SET
-	BlendPresetNormalKeepAlpha    = C.GPU_BLEND_NORMAL_KEEP_ALPHA
-	BlendPresetAddAlpha           = C.GPU_BLEND_NORMAL_ADD_ALPHA
-	BlendPresetFactorAlpha        = C.GPU_BLEND_NORMAL_FACTOR_ALPHA
+	BlendPresetNormal             BlendPresetEnum = C.GPU_BLEND_NORMAL
+	BlendPresetPremultipliedAlpha BlendPresetEnum = C.GPU_BLEND_PREMULTIPLIED_ALPHA
+	BlendPresetMultiply           BlendPresetEnum = C.GPU_BLEND_MULTIPLY
+	BlendPresetAdd                BlendPresetEnum = C.GPU_BLEND_ADD
+	BlendPresetSubtract           BlendPresetEnum = C.GPU_BLEND_SUBTRACT
+	BlendPresetModAlpha           BlendPresetEnum = C.GPU_BLEND_MOD_ALPHA
+	BlendPresetSetAlpha           BlendPresetEnum = C.GPU_BLEND_SET_ALPHA
+	BlendPresetSet                BlendPresetEnum = C.GPU_BLEND_SET
+	BlendPresetNormalKeepAlpha    BlendPresetEnum = C.GPU_BLEND_NORMAL_KEEP_ALPHA
+	BlendPresetAddAlpha           BlendPresetEnum = C.GPU_BLEND_NORMAL_ADD_ALPHA
+	BlendPresetFactorAlpha        BlendPresetEnum = C.GPU_BLEND_NORMAL_FACTOR_ALPHA
+)
+
+type FilterEnum C.GPU_FilterEnum
+
+const (
+	FilterNearest      FilterEnum = C.GPU_FILTER_NEAREST
+	FilterLinear       FilterEnum = C.GPU_FILTER_LINEAR
+	FilterLinearMipmap FilterEnum = C.GPU_FILTER_LINEAR_MIPMAP
+)
+
+type SnapEnum C.GPU_SnapEnum
+
+const (
+	SnapNone                  SnapEnum = C.GPU_SNAP_NONE
+	SnapPosition              SnapEnum = C.GPU_SNAP_POSITION
+	SnapDimensions            SnapEnum = C.GPU_SNAP_DIMENSIONS
+	SnapPositionAndDimensions SnapEnum = C.GPU_SNAP_POSITION_AND_DIMENSIONS
+)
+
+type WrapEnum C.GPU_WrapEnum
+
+const (
+	WrapNone     WrapEnum = C.GPU_WRAP_NONE
+	WrapRepeat   WrapEnum = C.GPU_WRAP_REPEAT
+	WrapMirrored WrapEnum = C.GPU_WRAP_MIRRORED
+)
+
+type FormatEnum C.GPU_FormatEnum
+
+const (
+	FormatLuminance      FormatEnum = C.GPU_FORMAT_LUMINANCE
+	FormatLuminanceAlpha FormatEnum = C.GPU_FORMAT_LUMINANCE_ALPHA
+	FormatRGB            FormatEnum = C.GPU_FORMAT_RGB
+	FormatRGBA           FormatEnum = C.GPU_FORMAT_RGBA
+	FormatAlpha          FormatEnum = C.GPU_FORMAT_ALPHA
+	FormatRG             FormatEnum = C.GPU_FORMAT_RG
+	FormatYCbCr422       FormatEnum = C.GPU_FORMAT_YCbCr422
+	FormatYCbCr420P      FormatEnum = C.GPU_FORMAT_YCbCr420P
+	FormatBGR            FormatEnum = C.GPU_FORMAT_BGR
+	FormatBGRA           FormatEnum = C.GPU_FORMAT_BGRA
+	FormatABGR           FormatEnum = C.GPU_FORMAT_ABGR
+)
+
+type FileFormatEnum C.GPU_FileFormatEnum
+
+const (
+	FileFormatAuto FileFormatEnum = C.GPU_FILE_AUTO
+	FileFormatPNG  FileFormatEnum = C.GPU_FILE_PNG
+	FileFormatBMP  FileFormatEnum = C.GPU_FILE_BMP
+	FileFormatTGA  FileFormatEnum = C.GPU_FILE_TGA
 )
 
 // TODO: Resume at 210
@@ -542,6 +592,32 @@ func (t *Target) UnsetColor() {
 }
 
 // End Target
+
+// Begin Surface
+type Surface C.SDL_Surface
+type RWOps C.SDL_RWops
+
+func (s *Surface) cptr() *C.SDL_Surface {
+	return (*C.SDL_Surface)(unsafe.Pointer(s))
+}
+
+func LoadSurface(fileName string) *Surface {
+	_fileName := C.CString(fileName)
+	defer C.free(unsafe.Pointer(_fileName))
+
+	return (*Surface)(C.GPU_LoadSurface(_fileName))
+}
+
+func (s *Surface) SaveSurface(fileName string, format FileFormatEnum) bool {
+	_fileName := C.CString(fileName)
+	defer C.free(unsafe.Pointer(_fileName))
+
+	return bool(C.GPU_SaveSurface(s.cptr(), _fileName, C.GPU_FileFormatEnum(format)))
+}
+
+// TODO: GPU_LoadSurface_RW, GPU_SaveSurface_RW
+
+// End Surface
 
 // Begin Image
 func (i *Image) cptr() *C.GPU_Image {
