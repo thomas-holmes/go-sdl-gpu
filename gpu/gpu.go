@@ -60,23 +60,27 @@ const (
 	ComparisonAlways   = C.GPU_ALWAYS
 )
 
-const (
-	BlendFuncZero             = C.GPU_FUNC_ZERO
-	BlendFuncOne              = C.GPU_FUNC_ONE
-	BlendFuncSrcColor         = C.GPU_FUNC_SRC_COLOR
-	BlendFuncDstColor         = C.GPU_FUNC_DST_COLOR
-	BlendFuncOneMinusSrc      = C.GPU_FUNC_ONE_MINUS_SRC
-	BlendFuncOneMinusDst      = C.GPU_FUNC_ONE_MINUS_DST
-	BlendFuncSrcAlpha         = C.GPU_FUNC_SRC_ALPHA
-	BlendFuncDstAlpha         = C.GPU_FUNC_DST_ALPHA
-	BlendFuncOneMinusSrcAlpha = C.GPU_FUNC_ONE_MINUS_SRC_ALPHA
-	BlendFuncOneMinusDstAlpha = C.GPU_FUNC_ONE_MINUS_DST_ALPHA
-)
+type BlendFuncEnum C.GPU_BlendFuncEnum
 
 const (
-	BlendEqAdd             = C.GPU_EQ_ADD
-	BlendEqSubtract        = C.GPU_EQ_SUBTRACT
-	BlendEqReverseSubtract = C.GPU_EQ_REVERSE_SUBTRACT
+	BlendFuncZero             BlendFuncEnum = C.GPU_FUNC_ZERO
+	BlendFuncOne              BlendFuncEnum = C.GPU_FUNC_ONE
+	BlendFuncSrcColor         BlendFuncEnum = C.GPU_FUNC_SRC_COLOR
+	BlendFuncDstColor         BlendFuncEnum = C.GPU_FUNC_DST_COLOR
+	BlendFuncOneMinusSrc      BlendFuncEnum = C.GPU_FUNC_ONE_MINUS_SRC
+	BlendFuncOneMinusDst      BlendFuncEnum = C.GPU_FUNC_ONE_MINUS_DST
+	BlendFuncSrcAlpha         BlendFuncEnum = C.GPU_FUNC_SRC_ALPHA
+	BlendFuncDstAlpha         BlendFuncEnum = C.GPU_FUNC_DST_ALPHA
+	BlendFuncOneMinusSrcAlpha BlendFuncEnum = C.GPU_FUNC_ONE_MINUS_SRC_ALPHA
+	BlendFuncOneMinusDstAlpha BlendFuncEnum = C.GPU_FUNC_ONE_MINUS_DST_ALPHA
+)
+
+type BlendEqEnum C.GPU_BlendEqEnum
+
+const (
+	BlendEqAdd             BlendEqEnum = C.GPU_EQ_ADD
+	BlendEqSubtract        BlendEqEnum = C.GPU_EQ_SUBTRACT
+	BlendEqReverseSubtract BlendEqEnum = C.GPU_EQ_REVERSE_SUBTRACT
 )
 
 type BlendPresetEnum C.GPU_BlendPresetEnum
@@ -624,7 +628,166 @@ func (i *Image) cptr() *C.GPU_Image {
 	return (*C.GPU_Image)(unsafe.Pointer(i))
 }
 
+func CreateImage(w, h uint16, format FormatEnum) *Image {
+	return (*Image)(C.GPU_CreateImage(C.Uint16(w), C.Uint16(h), C.GPU_FormatEnum(format)))
+}
+
+type TextureHandle C.GPU_TextureHandle
+
+func CreateImageUsingTexture(textureHandle TextureHandle, takeOwnership bool) *Image {
+	return (*Image)(C.GPU_CreateImageUsingTexture(C.GPU_TextureHandle(textureHandle), C.bool(takeOwnership)))
+}
+
+func LoadImage(fileName string) *Image {
+	_fileName := C.CString(fileName)
+	defer C.free(unsafe.Pointer(_fileName))
+
+	return (*Image)(C.GPU_LoadImage(_fileName))
+}
+
+// TODO: func LoadImageRW(rwOps SDLRWops, freeRWops bool) *Image {}
+
+func (i *Image) CreateAlias() *Image {
+	return (*Image)(C.GPU_CreateAliasImage(i.cptr()))
+}
+
+func (i *Image) Copy() *Image {
+	return (*Image)(C.GPU_CopyImage(i.cptr()))
+}
+
+func (i *Image) Free() {
+	C.GPU_FreeImage(i.cptr())
+}
+
+func (i *Image) SetVirtualResolution(w, h uint16) {
+	C.GPU_SetImageVirtualResolution(i.cptr(), C.Uint16(w), C.Uint16(h))
+}
+
+func (i *Image) UnsetVirtualResolution() {
+	C.GPU_UnsetImageVirtualResolution(i.cptr())
+}
+
+func (i *Image) Update(imageRect *Rect, surface *Surface, surfaceRect *Rect) {
+	_ir := &C.GPU_Rect{C.float(imageRect.X), C.float(imageRect.Y), C.float(imageRect.W), C.float(imageRect.H)}
+	_sr := &C.GPU_Rect{C.float(surfaceRect.X), C.float(surfaceRect.Y), C.float(surfaceRect.W), C.float(surfaceRect.H)}
+	C.GPU_UpdateImage(i.cptr(), _ir, (*C.SDL_Surface)(surface), _sr)
+}
+
+func (i *Image) UpdateBytes(imageRect *Rect, bytes []byte, stride int) {
+	_ir := &C.GPU_Rect{C.float(imageRect.X), C.float(imageRect.Y), C.float(imageRect.W), C.float(imageRect.H)}
+	_bytes := (*C.uchar)(unsafe.Pointer(&bytes[0]))
+	C.GPU_UpdateImageBytes(i.cptr(), _ir, _bytes, C.int(stride))
+}
+
+func (i *Image) Replace(surface *Surface, surfaceRect *Rect) bool {
+	_sr := &C.GPU_Rect{C.float(surfaceRect.X), C.float(surfaceRect.Y), C.float(surfaceRect.W), C.float(surfaceRect.H)}
+	return bool(C.GPU_ReplaceImage(i.cptr(), (*C.SDL_Surface)(surface), _sr))
+}
+
+func (i *Image) Save(fileName string, format FileFormatEnum) bool {
+	_fileName := C.CString(fileName)
+	C.free(unsafe.Pointer(_fileName))
+
+	return bool(C.GPU_SaveImage(i.cptr(), _fileName, C.GPU_FileFormatEnum(format)))
+}
+
+/* TODO: Once I Figure out RWOps
+func (i *Image) SaveRW(rwOps RWOps, freeRWops bool, format FileFormatEnum) bool {
+
+}
+*/
+
+func (i *Image) GenerateMipmaps() {
+	C.GPU_GenerateMipmaps(i.cptr())
+}
+
+func (i *Image) SetColor(color Color) {
+	_c := C.SDL_Color{C.Uint8(color.R), C.Uint8(color.G), C.Uint8(color.B), C.Uint8(color.A)}
+	C.GPU_SetColor(i.cptr(), _c)
+}
+
+func (i *Image) SetRGB(r, g, b uint8) {
+	C.GPU_SetRGB(i.cptr(), C.Uint8(r), C.Uint8(g), C.Uint8(b))
+}
+
+func (i *Image) SetRGBA(r, g, b, a uint8) {
+	C.GPU_SetRGBA(i.cptr(), C.Uint8(r), C.Uint8(g), C.Uint8(b), C.Uint8(a))
+}
+
+func (i *Image) UnsetColor() {
+	C.GPU_UnsetColor(i.cptr())
+}
+
+func (i *Image) GetBlending() bool {
+	return bool(C.GPU_GetBlending(i.cptr()))
+}
+
+func (i *Image) SetBlending(enable bool) {
+	C.GPU_SetBlending(i.cptr(), C.bool(enable))
+}
+
+func (i *Image) SetBlendFunction(sourceColor, destColor, sourceAlpha, destAlpha BlendFuncEnum) {
+	C.GPU_SetBlendFunction(i.cptr(),
+		C.GPU_BlendFuncEnum(sourceColor),
+		C.GPU_BlendFuncEnum(destColor),
+		C.GPU_BlendFuncEnum(sourceAlpha),
+		C.GPU_BlendFuncEnum(destAlpha),
+	)
+}
+
+func (i *Image) SetBlendEquation(colorEquation, alphaEquation BlendEqEnum) {
+	C.GPU_SetBlendEquation(i.cptr(), C.GPU_BlendEqEnum(colorEquation), C.GPU_BlendEqEnum(alphaEquation))
+}
+
+func (i *Image) SetFilter(filter FilterEnum) {
+	C.GPU_SetImageFilter(i.cptr(), C.GPU_FilterEnum(filter))
+}
+
+func (i *Image) SetAnchor(x, y float32) {
+	C.GPU_SetAnchor(i.cptr(), C.float(x), C.float(y))
+}
+
+func (i *Image) GetAnchor() (x, y float32) {
+	var _x, _y C.float
+
+	C.GPU_GetAnchor(i.cptr(), &_x, &_y)
+
+	return float32(_x), float32(_y)
+}
+
+func (i *Image) GetSnapMode() SnapEnum {
+	return SnapEnum(C.GPU_GetSnapMode(i.cptr()))
+}
+
+func (i *Image) SetSnapMode(snapMode SnapEnum) {
+	C.GPU_SetSnapMode(i.cptr(), C.GPU_SnapEnum(snapMode))
+}
+
+func (i *Image) SetWrapMode(wrapModeX, wrapModeY WrapEnum) {
+	C.GPU_SetWrapMode(i.cptr(), C.GPU_WrapEnum(wrapModeX), C.GPU_WrapEnum(wrapModeY))
+}
+
 // End Image
+
+// Begin Surface, Image, & Target Conversions
+
+func (s *Surface) CopyImage() *Image {
+	return (*Image)(C.GPU_CopyImageFromSurface(s.cptr()))
+}
+
+func (t *Target) CopyImage() *Image {
+	return (*Image)(C.GPU_CopyImageFromTarget(t.cptr()))
+}
+
+func (i *Image) CopySurface() *Surface {
+	return (*Surface)(C.GPU_CopySurfaceFromImage(i.cptr()))
+}
+
+func (t *Target) CopySurface() *Surface {
+	return (*Surface)(C.GPU_CopySurfaceFromTarget(t.cptr()))
+}
+
+// End Surface, Image, & Target Conversions
 
 // Begin Rendering
 func (t *Target) Clear() {
