@@ -295,24 +295,28 @@ type Attribute C.GPU_Attribute
 
 type AttributeSource C.GPU_AttributeSource
 
+type ErrorEnum C.GPU_ErrorEnum
+
 const (
-	ErrorNone                = C.GPU_ERROR_NONE
-	ErrorBackendError        = C.GPU_ERROR_BACKEND_ERROR
-	ErrorDataError           = C.GPU_ERROR_DATA_ERROR
-	ErrorUserError           = C.GPU_ERROR_USER_ERROR
-	ErrorUnsupportedFunction = C.GPU_ERROR_UNSUPPORTED_FUNCTION
-	ErrorNullArgument        = C.GPU_ERROR_NULL_ARGUMENT
-	ErrorFileNotFound        = C.GPU_ERROR_FILE_NOT_FOUND
+	ErrorNone                ErrorEnum = C.GPU_ERROR_NONE
+	ErrorBackendError        ErrorEnum = C.GPU_ERROR_BACKEND_ERROR
+	ErrorDataError           ErrorEnum = C.GPU_ERROR_DATA_ERROR
+	ErrorUserError           ErrorEnum = C.GPU_ERROR_USER_ERROR
+	ErrorUnsupportedFunction ErrorEnum = C.GPU_ERROR_UNSUPPORTED_FUNCTION
+	ErrorNullArgument        ErrorEnum = C.GPU_ERROR_NULL_ARGUMENT
+	ErrorFileNotFound        ErrorEnum = C.GPU_ERROR_FILE_NOT_FOUND
 )
 
 type ErrorObject C.GPU_ErrorObject
 
+type DebugLevelEnum C.GPU_DebugLevelEnum
+
 const (
-	DebugLevel0   = C.GPU_DEBUG_LEVEL_0
-	DebugLevel1   = C.GPU_DEBUG_LEVEL_1
-	DebugLevel2   = C.GPU_DEBUG_LEVEL_2
-	DebugLevel3   = C.GPU_DEBUG_LEVEL_3
-	DebugLevelMax = C.GPU_DEBUG_LEVEL_MAX
+	DebugLevel0   DebugLevelEnum = C.GPU_DEBUG_LEVEL_0
+	DebugLevel1   DebugLevelEnum = C.GPU_DEBUG_LEVEL_1
+	DebugLevel2   DebugLevelEnum = C.GPU_DEBUG_LEVEL_2
+	DebugLevel3   DebugLevelEnum = C.GPU_DEBUG_LEVEL_3
+	DebugLevelMax DebugLevelEnum = C.GPU_DEBUG_LEVEL_MAX
 )
 
 const (
@@ -323,7 +327,7 @@ const (
 
 type Renderer C.GPU_Renderer
 
-// Initialization Begin
+// Begin Initialization
 
 func Init(w, h uint16, flags InitFlagEnum) *Target {
 	return (*Target)(unsafe.Pointer(C.GPU_Init(C.Uint16(w),
@@ -399,7 +403,34 @@ func Quit() {
 	C.GPU_Quit()
 }
 
-// Initialization End
+// End Initialization
+
+// Begin Debugging, Logging, and Error Handling
+
+func SetDebugLevel(level DebugLevelEnum) {
+	C.GPU_SetDebugLevel(C.GPU_DebugLevelEnum(level))
+}
+
+func GetDebugLevel() DebugLevelEnum {
+	return DebugLevelEnum(C.GPU_GetDebugLevel())
+}
+
+// TODO: GPU_Log{Info, Warning, Error}
+// TODO: GPU_SetLogCallback
+// TODO: GPU_PushErrorCode
+
+func PopErrorCode() ErrorObject {
+	return ErrorObject(C.GPU_PopErrorCode())
+}
+
+func GetErrorString(err ErrorEnum) string {
+	_cstring := C.GPU_GetErrorString(C.GPU_ErrorEnum(err))
+	defer C.free(unsafe.Pointer(_cstring))
+
+	return string(*_cstring)
+}
+
+// End Debugging, Logging, and Error Handling
 
 // Begin Renderer Setup
 
@@ -668,9 +699,14 @@ func (i *Image) UnsetVirtualResolution() {
 }
 
 func (i *Image) Update(imageRect *Rect, surface *Surface, surfaceRect *Rect) {
-	_ir := &C.GPU_Rect{C.float(imageRect.X), C.float(imageRect.Y), C.float(imageRect.W), C.float(imageRect.H)}
-	_sr := &C.GPU_Rect{C.float(surfaceRect.X), C.float(surfaceRect.Y), C.float(surfaceRect.W), C.float(surfaceRect.H)}
-	C.GPU_UpdateImage(i.cptr(), _ir, (*C.SDL_Surface)(surface), _sr)
+	var _ir, _sr C.GPU_Rect
+	if imageRect != nil {
+		_ir = C.GPU_Rect{C.float(imageRect.X), C.float(imageRect.Y), C.float(imageRect.W), C.float(imageRect.H)}
+	}
+	if surfaceRect != nil {
+		_sr = C.GPU_Rect{C.float(surfaceRect.X), C.float(surfaceRect.Y), C.float(surfaceRect.W), C.float(surfaceRect.H)}
+	}
+	C.GPU_UpdateImage(i.cptr(), &_ir, (*C.SDL_Surface)(surface), &_sr)
 }
 
 func (i *Image) UpdateBytes(imageRect *Rect, bytes []byte, stride int) {
